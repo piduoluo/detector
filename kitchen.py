@@ -4,23 +4,33 @@ import os
 from ultralytics import YOLO
 
 # --- 1. 配置区域 ---
-# 换上我们刚才训练好的“真模型”
-model_path = 'smoking.pt' 
+# 吸烟模型 + 口罩模型
+SMOKING_MODEL_PATH = "smoking.pt"
+MASK_MODEL_PATH = "trained_mask_model.pt"
 
 # 报警冷却时间
 ALERT_COOLDOWN = 3.0 
 last_alert_time = 0
 
 # --- 2. 加载模型 ---
-print(f"🛡️ 正在加载你的专属模型: {model_path}...")
+print(f"🛡️ 正在加载吸烟模型: {SMOKING_MODEL_PATH}...")
 try:
-    model = YOLO(model_path)
-    print("✅ 模型加载成功！它现在是一名'香烟捕手'了。")
-    # 打印一下模型认识的所有类别，确认里面有 cigarette
-    print(f"模型识别类别: {model.names}")
+    smoking_model = YOLO(SMOKING_MODEL_PATH)
+    print("✅ 吸烟模型加载成功。")
+    print(f"吸烟模型类别: {smoking_model.names}")
 except Exception as e:
     print(f"❌ 模型加载失败: {e}")
     exit()
+
+mask_model = None
+if os.path.exists(MASK_MODEL_PATH):
+    print(f"🛡️ 正在加载口罩模型: {MASK_MODEL_PATH}...")
+    try:
+        mask_model = YOLO(MASK_MODEL_PATH)
+        print("✅ 口罩模型加载成功。")
+        print(f"口罩模型类别: {mask_model.names}")
+    except Exception as e:
+        print(f"⚠️ 口罩模型加载失败，将仅启用吸烟检测: {e}")
 
 # --- 3. 报警函数 ---
 def trigger_alert(message):
@@ -31,6 +41,21 @@ def trigger_alert(message):
         os.system(f"say {message} &") 
         last_alert_time = current_time
 
+def _norm(name):
+    return str(name).strip().lower().replace("_", "-").replace(" ", "-")
+
+
+def _is_smoking(class_id, class_name):
+    n = _norm(class_name)
+    return n in {"cigarette", "smoking"} or class_id == 0
+
+
+def _is_no_mask(class_id, class_name):
+    n = _norm(class_name)
+    if n in {"no-mask", "nomask", "without-mask", "mask-off"}:
+        return True
+    return class_id == 0 and "mask" in n and "no" in n
+
 # --- 4. 启动摄像头 ---
 cap = cv2.VideoCapture(0)
 
@@ -40,43 +65,50 @@ while True:
     if not ret: break
 
     # 推理
-    # conf=0.4: 因为我们是极速训练，模型可能稍微有点不自信，把门槛设低一点点
-    results = model(frame, stream=True, conf=0.4)
-
-    violation_detected = False
+    smoking_results = smoking_model(frame, stream=True, conf=0.4)
+    mask_results = mask_model(frame, stream=True, conf=0.4) if mask_model else None
+    smoking_detected = False
+    no_mask_detected = False
     
-    for result in results:
-        boxes = result.boxes
-        for box in boxes:
-            # 获取类别名称
+    for result in smoking_results:
+        for box in result.boxes:
             cls_id = int(box.cls[0])
-            cls_name = model.names[cls_id]
-            
-            # 获取置信度 (0.0 - 1.0)
+            cls_name = smoking_model.names.get(cls_id, cls_id)
             conf = float(box.conf[0])
-
-            # --- ⚠️ 真正的实战判断 ---
-            # 因为这个模型是用香烟数据专门微调的，
-            # 所以不管它返回 ID 是 0 还是别的，只要名字里包含 cigarette 或者是类别 0
-            # 我们都认为它是香烟
-            
-            # 画框框
+            if not _is_smoking(cls_id, cls_name):
+                continue
             x1, y1, x2, y2 = map(int, box.xyxy[0])
-            
-            # 只有检测到香烟时才报警
-            # (通常训练后的模型，类别名字就是 'cigarette')
-            label = f"{cls_name} {conf:.2f}"
-            
-            # 绘制红框
+            label = f"smoking {conf:.2f}"
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
-            cv2.putText(frame, label, (x1, y1-10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-            
-            trigger_alert("发现吸烟行为")
-            violation_detected = True
+            cv2.putText(frame, label, (x1, max(20, y1 - 10)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            smoking_detected = True
+
+    if mask_results:
+        for result in mask_results:
+            for box in result.boxes:
+                cls_id = int(box.cls[0])
+                cls_name = mask_model.names.get(cls_id, cls_id)
+                conf = float(box.conf[0])
+                if not _is_no_mask(cls_id, cls_name):
+                    continue
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                label = f"no-mask {conf:.2f}"
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 3)
+                cv2.putText(frame, label, (x1, max(20, y1 - 10)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                no_mask_detected = True
+
+    if smoking_detected or no_mask_detected:
+        msg = []
+        if smoking_detected:
+            msg.append("发现吸烟行为")
+        if no_mask_detected:
+            msg.append("发现未佩戴口罩")
+        trigger_alert("，".join(msg))
 
     # 视觉报警特效
-    if violation_detected:
+    if smoking_detected or no_mask_detected:
         cv2.rectangle(frame, (0, 0), (frame.shape[1], frame.shape[0]), (0, 0, 255), 8)
 
     cv2.imshow('Kitchen Sentinel (Real Model)', frame)

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>厨房吸烟检测</title>
+    <title>厨房违规检测</title>
     <style>
       :root {
         --bg: #f6f8fb;
@@ -74,7 +74,7 @@
     <div class="container">
       <div class="card">
         <h1>厨房吸烟检测（网页端）</h1>
-        <p>开启摄像头后自动实时检测，后端使用你当前的 `smoking.pt` 识别吸烟行为。</p>
+        <p>开启摄像头后自动实时检测，后端同时识别吸烟与未戴口罩。</p>
         <div id="status" class="status safe">当前状态：未检测</div>
       </div>
 
@@ -105,20 +105,32 @@
 
       const setResult = (data) => {
         preview.src = data.preview_image || "";
-        if (data.smoking_detected) {
+        if (data.violation_detected) {
           status.className = "status danger";
-          status.textContent = `当前状态：检测到吸烟（${data.count}处）`;
+          const reasons = [];
+          if (data.smoking_detected) reasons.push(`吸烟(${data.smoking_count || 0}处)`);
+          if (data.no_mask_detected) reasons.push(`未戴口罩(${data.no_mask_count || 0}处)`);
+          status.textContent = `当前状态：违规 - ${reasons.join("，")}`;
           if (data.just_saved) {
-            detail.textContent = `首次截图已保存：${data.screenshot_path}`;
+            const reasonText = data.save_reason ? `（原因：${data.save_reason}）` : "";
+            detail.textContent = `已保存违规截图：${data.screenshot_path}${reasonText}`;
           } else if (data.screenshot_saved) {
-            detail.textContent = `已保存首张截图：${data.screenshot_path}`;
+            const streakText = data.save_streak ? `；连续命中：${data.save_streak}` : "";
+            detail.textContent = `最近截图：${data.screenshot_path}${streakText}`;
           } else {
-            detail.textContent = `置信度示例：${data.boxes.map(b => b.confidence).join(", ")}`;
+            const confidences = []
+              .concat((data.boxes || []).map((b) => b.confidence))
+              .concat((data.no_mask_boxes || []).map((b) => b.confidence));
+            detail.textContent = `置信度示例：${confidences.join(", ")}`;
           }
         } else {
           status.className = "status safe";
-          status.textContent = "当前状态：未检测到吸烟";
-          detail.textContent = "未发现香烟目标";
+          status.textContent = "当前状态：正常";
+          if (data.mask_model_loaded === false) {
+            detail.textContent = "口罩模型未加载，仅吸烟检测有效";
+          } else {
+            detail.textContent = "未发现吸烟/未戴口罩目标";
+          }
         }
       };
 
