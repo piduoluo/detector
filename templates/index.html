@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>厨房吸烟检测</title>
+    <style>
+      :root {
+        --bg: #f6f8fb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --danger: #d92d20;
+        --safe: #067647;
+        --muted: #667085;
+        --line: #d0d5dd;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background: linear-gradient(180deg, #f9fafb 0%, #eef4ff 100%);
+      }
+      .container {
+        max-width: 980px;
+        margin: 28px auto;
+        padding: 0 16px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      h1 { margin: 0 0 12px; font-size: 24px; }
+      p { margin: 0 0 12px; color: var(--muted); }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      video, img {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: #000;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      button, input[type="file"] {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fff;
+        cursor: pointer;
+      }
+      .status {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .safe { color: var(--safe); }
+      .danger { color: var(--danger); }
+      @media (max-width: 860px) {
+        .row { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>厨房吸烟检测（网页端）</h1>
+        <p>开启摄像头后自动实时检测，后端使用你当前的 `smoking.pt` 识别吸烟行为。</p>
+        <div id="status" class="status safe">当前状态：未检测</div>
+      </div>
+
+      <div class="card row">
+        <div>
+          <p>实时摄像头（浏览器）</p>
+          <video id="video" autoplay playsinline muted></video>
+          <div class="controls">
+            <button id="startCam">开启摄像头</button>
+            <button id="stopDetect">停止检测</button>
+          </div>
+        </div>
+        <div>
+          <p>检测结果预览（画框后）</p>
+          <img id="preview" alt="检测结果" />
+          <p id="detail">等待检测...</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const video = document.getElementById("video");
+      const preview = document.getElementById("preview");
+      const status = document.getElementById("status");
+      const detail = document.getElementById("detail");
+      let detectTimer = null;
+      let isDetecting = false;
+
+      const setResult = (data) => {
+        preview.src = data.preview_image || "";
+        if (data.smoking_detected) {
+          status.className = "status danger";
+          status.textContent = `当前状态：检测到吸烟（${data.count}处）`;
+          if (data.just_saved) {
+            detail.textContent = `首次截图已保存：${data.screenshot_path}`;
+          } else if (data.screenshot_saved) {
+            detail.textContent = `已保存首张截图：${data.screenshot_path}`;
+          } else {
+            detail.textContent = `置信度示例：${data.boxes.map(b => b.confidence).join(", ")}`;
+          }
+        } else {
+          status.className = "status safe";
+          status.textContent = "当前状态：未检测到吸烟";
+          detail.textContent = "未发现香烟目标";
+        }
+      };
+
+      async function detectWithFormData(formData) {
+        const res = await fetch("/api/detect", { method: "POST", body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "检测失败");
+        }
+        setResult(data);
+      }
+
+      async function detectCurrentFrame() {
+        if (!video.srcObject || !isDetecting) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        const form = new FormData();
+        form.append("image_data", dataUrl);
+        try {
+          await detectWithFormData(form);
+        } catch (error) {
+          detail.textContent = `检测失败: ${error.message}`;
+        }
+      }
+
+      function startRealtimeLoop() {
+        if (detectTimer) clearInterval(detectTimer);
+        detectTimer = setInterval(detectCurrentFrame, 800);
+      }
+
+      function stopRealtimeLoop() {
+        isDetecting = false;
+        if (detectTimer) {
+          clearInterval(detectTimer);
+          detectTimer = null;
+        }
+      }
+
+      document.getElementById("startCam").onclick = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+        isDetecting = true;
+        startRealtimeLoop();
+        detail.textContent = "实时检测已启动";
+      };
+
+      document.getElementById("stopDetect").onclick = () => {
+        stopRealtimeLoop();
+        detail.textContent = "实时检测已停止";
+      };
+    </script>
+  </body>
+</html>

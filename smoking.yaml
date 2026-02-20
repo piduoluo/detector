@@ -1,0 +1,6 @@
+path: /Users/melody/Desktop/yolo_project/datasets/smoking
+train: train/images
+val: valid/images
+nc: 1
+names:
+- cigarette
