@@ -1,138 +1,1092 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>厨房违规检测</title>
-    <style>
-      :root {
-        --bg: #f6f8fb;
-        --card: #ffffff;
-        --text: #1f2937;
-        --danger: #d92d20;
-        --safe: #067647;
-        --muted: #667085;
-        --line: #d0d5dd;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-        color: var(--text);
-        background: linear-gradient(180deg, #f9fafb 0%, #eef4ff 100%);
-      }
-      .container {
-        max-width: 980px;
-        margin: 28px auto;
-        padding: 0 16px;
-      }
-      .card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 16px;
-      }
-      h1 { margin: 0 0 12px; font-size: 24px; }
-      p { margin: 0 0 12px; color: var(--muted); }
-      .row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-      video, img {
-        width: 100%;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-        background: #000;
-      }
-      .controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
-      }
-      button, input[type="file"] {
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 10px 12px;
-        background: #fff;
-        cursor: pointer;
-      }
-      .status {
-        font-size: 18px;
-        font-weight: 700;
-      }
-      .safe { color: var(--safe); }
-      .danger { color: var(--danger); }
-      @media (max-width: 860px) {
-        .row { grid-template-columns: 1fr; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="card">
-        <h1>厨房吸烟检测（网页端）</h1>
-        <p>开启摄像头后自动实时检测，后端同时识别吸烟与未戴口罩。</p>
-        <div id="status" class="status safe">当前状态：未检测</div>
-      </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>厨房AI违规检测系统 </title>
+  <style>
+    /* ===== 工业极简风格 · 厨房监管专用 ===== */
+    :root {
+      /* 工业极简色彩系统 - 严格限制色彩使用 */
+      --bg-primary: #0F0F0F;        /* 主背景 - 深空黑 */
+      --bg-secondary: #1A1A1A;       /* 次级背景 - 深灰 */
+      --bg-card: #242424;            /* 卡片背景 - 中灰 */
+      --bg-card-hover: #2A2A2A;      /* 卡片悬停 - 略浅 */
+      --border-color: #333333;       /* 边框 - 深灰 */
+      --border-light: #3A3A3A;       /* 浅边框 */
+      
+      /* 文本层级 - 仅用灰度 */
+      --text-primary: #FFFFFF;        /* 主要文本 - 纯白 */
+      --text-secondary: #E0E0E0;      /* 次要文本 - 浅灰 */
+      --text-tertiary: #A0A0A0;       /* 辅助文本 - 中灰 */
+      --text-muted: #757575;          /* 禁用/提示 - 深灰 */
+      
+      /* 警告色 - 仅用于违规状态，严格限制 */
+      --danger-primary: #DC2626;       /* 严重违规 - 警示红 */
+      --danger-secondary: #B91C1C;     /* 深红 - 边框/悬停 */
+      --danger-light: rgba(220, 38, 38, 0.1); /* 半透明红 - 背景 */
+      
+      /* 正常状态 - 完全灰度 */
+      --safe-color: #10B981;           /* 安全状态 - 仅在特定场景使用 */
+      
+      /* 尺寸系统 - 克制统一 */
+      --radius: 4px;                   /* 极微圆角，体现工业感 */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      
+      /* 字体系统 */
+      --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
+    }
 
-      <div class="card row">
-        <div>
-          <p>实时摄像头（浏览器）</p>
-          <video id="video" autoplay playsinline muted></video>
-          <div class="controls">
-            <button id="startCam">开启摄像头</button>
-            <button id="stopDetect">停止检测</button>
-          </div>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      line-height: 1.5;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== 左侧导航 ===== */
+    .sidebar {
+      width: 72px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--spacing-lg) 0;
+      gap: var(--spacing-xl);
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      font-size: 20px;
+    }
+
+    .nav-items {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+      width: 100%;
+      align-items: center;
+    }
+
+    .nav-item {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+      border-radius: var(--radius);
+      cursor: default;
+      transition: all 0.1s ease;
+      border: 1px solid transparent;
+    }
+
+    .nav-item.active {
+      background: var(--bg-card);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .nav-item:hover {
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    /* ===== 主内容区 ===== */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
+    /* 顶部状态栏 */
+    .header {
+      height: 60px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--spacing-lg);
+      background: var(--bg-secondary);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-lg);
+    }
+
+    .system-title {
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: var(--text-primary);
+      text-transform: uppercase;
+    }
+
+    .system-title span {
+      color: var(--danger-primary);
+      font-weight: 600;
+      margin-left: var(--spacing-xs);
+    }
+
+    .time {
+      font-size: 13px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-md);
+    }
+
+    .search-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 6px var(--spacing-sm);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      width: 240px;
+    }
+
+    .search-box svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--text-tertiary);
+      stroke-width: 1.5;
+    }
+
+    .search-box input {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .user-badge {
+      width: 32px;
+      height: 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-tertiary);
+    }
+
+    /* ===== 内容区域 ===== */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--spacing-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-lg);
+    }
+
+    /* 统计卡片行 - 工业极简核心 */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--spacing-md);
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: var(--spacing-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .stat-value.danger {
+      color: var(--danger-primary);
+    }
+
+    .stat-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .dot.danger {
+      background: var(--danger-primary);
+    }
+
+    /* 违规key标签 */
+    .violation-key {
+      font-size: 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      padding: 2px 6px;
+      border-radius: 2px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    .violation-key.smoking {
+      border-color: var(--danger-primary);
+      color: var(--danger-primary);
+    }
+
+    .violation-key.no-mask {
+      border-color: var(--danger-primary);
+      color: var(--danger-primary);
+    }
+
+    /* ===== 监控区域 ===== */
+    .monitoring-section {
+      display: flex;
+      gap: var(--spacing-md);
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* 视频网格 - 左侧 */
+    .video-grid {
+      flex: 2;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-md);
+      overflow-y: auto;
+      padding-right: var(--spacing-xs);
+    }
+
+    .video-window {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      aspect-ratio: 16/9;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.15s ease;
+    }
+
+    .video-window.violation {
+      border-color: var(--danger-primary);
+      border-width: 1.5px;
+    }
+
+    .video-placeholder {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    video, img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+      display: block;
+    }
+
+    .window-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+      padding: 20px 8px 8px 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+
+    .kitchen-name {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .timestamp {
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    .violation-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: var(--danger-primary);
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      z-index: 2;
+    }
+
+    /* 右侧违规列表 */
+    .violation-sidebar {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      min-width: 300px;
+    }
+
+    .violation-header {
+      padding: var(--spacing-md);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .violation-count {
+      background: var(--danger-light);
+      color: var(--danger-primary);
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .violation-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--spacing-xs);
+    }
+
+    .violation-item {
+      padding: var(--spacing-sm);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .violation-item:last-child {
+      border-bottom: none;
+    }
+
+    .violation-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .violation-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .violation-types {
+      display: flex;
+      gap: var(--spacing-xs);
+      flex-wrap: wrap;
+    }
+
+    .violation-type-tag {
+      background: var(--danger-light);
+      color: var(--danger-primary);
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-weight: 500;
+    }
+
+    .confidence-badge {
+      background: var(--bg-card);
+      color: var(--text-tertiary);
+      font-size: 10px;
+      padding: 2px 4px;
+      border-radius: 2px;
+      font-family: var(--font-mono);
+    }
+
+    .violation-key-badge {
+      background: var(--bg-primary);
+      color: var(--text-tertiary);
+      font-size: 10px;
+      padding: 2px 4px;
+      border-radius: 2px;
+      font-family: var(--font-mono);
+      border: 1px solid var(--border-color);
+    }
+
+    .violation-kitchen {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .save-info {
+      font-size: 10px;
+      color: var(--danger-primary);
+      background: var(--danger-light);
+      padding: 2px 4px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    /* 底部控制面板 */
+    .control-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: var(--spacing-md);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--spacing-md);
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      min-width: 200px;
+    }
+
+    .status-led {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background-color 0.2s ease;
+    }
+
+    .status-led.safe {
+      background: var(--safe-color);
+    }
+
+    .status-led.danger {
+      background: var(--danger-primary);
+    }
+
+    .status-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .status-text.danger {
+      color: var(--danger-primary);
+    }
+
+    .status-detail {
+      flex: 1;
+      display: flex;
+      gap: var(--spacing-md);
+      align-items: center;
+    }
+
+    .streak-badge {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 2px 8px;
+      border-radius: 2px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
+    .save-path {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      background: var(--bg-card);
+      padding: 2px 8px;
+      border-radius: 2px;
+    }
+
+    .control-buttons {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+
+    .btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 6px 12px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.1s ease;
+    }
+
+    .btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-light);
+      color: var(--text-primary);
+    }
+
+    .btn-primary {
+      background: var(--danger-primary);
+      border-color: var(--danger-primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--danger-secondary);
+      border-color: var(--danger-secondary);
+    }
+
+    /* 置信度详情面板 */
+    .confidence-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      display: flex;
+      gap: var(--spacing-lg);
+    }
+
+    .confidence-item {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+    }
+
+    .confidence-label {
+      color: var(--text-muted);
+    }
+
+    .confidence-value {
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    .confidence-value.danger {
+      color: var(--danger-primary);
+    }
+
+    /* 滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 0;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-light);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- 左侧导航 - 仅图标 -->
+    <div class="sidebar">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" stroke="currentColor">
+          <rect x="4" y="4" width="16" height="16" rx="2" stroke-width="1.5" fill="none"/>
+          <path d="M8 8h8v8H8z" stroke-width="1.5" fill="none"/>
+        </svg>
+      </div>
+      <div class="nav-items">
+        <div class="nav-item active">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 12h2l3-9 3 9h2M3 12h2l3-9 3 9h2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M5 12v7h14v-7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
         </div>
-        <div>
-          <p>检测结果预览（画框后）</p>
-          <img id="preview" alt="检测结果" />
-          <p id="detail">等待检测...</p>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24">
+            <path d="M20 12H4M12 4v16" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+        </div>
+        <div class="nav-item">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M7 8h10M7 12h10M7 16h6" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
         </div>
       </div>
     </div>
 
-    <script>
+    <!-- 主内容区 -->
+    <div class="main">
+      <!-- 顶部状态栏 -->
+      <div class="header">
+        <div class="header-left">
+          <div class="system-title">
+            厨房AI违规检测 <span>· 工业版</span>
+          </div>
+          <div class="time" id="currentTime">2024-02-20 14:30:45</div>
+        </div>
+        <div class="header-right">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <path d="M16 16l4 4" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <input type="text" placeholder="搜索厨房/违规记录..." />
+          </div>
+          <div class="user-badge">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              <path d="M5 20v-2a7 7 0 0 1 14 0v2" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 内容区域 -->
+      <div class="content">
+        <!-- 统计卡片 - 工业极简风格，对接后端数据 -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-label">今日违规</div>
+            <div class="stat-value danger" id="todayViolations">0</div>
+            <div class="stat-desc">
+              <span class="dot danger"></span>
+              累计违规次数
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">吸烟检测</div>
+            <div class="stat-value" id="smokingCount">0</div>
+            <div class="stat-desc">
+              <span class="dot"></span>
+              当前帧吸烟数
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">未戴口罩</div>
+            <div class="stat-value" id="noMaskCount">0</div>
+            <div class="stat-desc">
+              <span class="dot danger"></span>
+              当前帧未戴口罩
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">连续命中</div>
+            <div class="stat-value" id="streakCount">0</div>
+            <div class="stat-desc">
+              <span class="dot"></span>
+              违规连续次数
+            </div>
+          </div>
+        </div>
+
+        <!-- 置信度信息 - 对接后端阈值 -->
+        <div class="confidence-panel">
+          <div class="confidence-item">
+            <span class="confidence-label">吸烟阈值:</span>
+            <span class="confidence-value">0.35</span>
+          </div>
+          <div class="confidence-item">
+            <span class="confidence-label">口罩阈值:</span>
+            <span class="confidence-value">0.35</span>
+          </div>
+          <div class="confidence-item">
+            <span class="confidence-label">保存连击:</span>
+            <span class="confidence-value">≥3次</span>
+          </div>
+          <div class="confidence-item">
+            <span class="confidence-label">保存冷却:</span>
+            <span class="confidence-value">10秒</span>
+          </div>
+          <div class="confidence-item">
+            <span class="confidence-label" id="maskModelStatus">口罩模型: 已加载</span>
+          </div>
+        </div>
+
+        <!-- 监控主区域 -->
+        <div class="monitoring-section">
+          <!-- 视频网格 2x2 -->
+          <div class="video-grid">
+            <!-- 实时摄像头窗口 -->
+            <div class="video-window" id="camWindow">
+              <video id="video" autoplay playsinline muted style="display: none;"></video>
+              <div class="video-placeholder" id="camPlaceholder">摄像头 · 等待连接</div>
+              <div class="window-label">
+                <span class="kitchen-name">实时摄像头</span>
+                <span class="timestamp" id="camTimestamp">--:--:--</span>
+              </div>
+            </div>
+            
+            <!-- 检测结果预览窗口（带标注） -->
+            <div class="video-window" id="previewWindow">
+              <img id="preview" alt="检测结果" style="display: none;" />
+              <div class="video-placeholder" id="previewPlaceholder">检测结果预览</div>
+              <div class="window-label">
+                <span class="kitchen-name">AI识别预览</span>
+                <span class="timestamp" id="previewTimestamp">等待检测</span>
+              </div>
+              <!-- 违规角标动态显示 -->
+              <div class="violation-badge" id="previewViolationBadge" style="display: none;">违规中</div>
+            </div>
+
+            <!-- 违规Key可视化窗口 -->
+            <div class="video-window" id="violationKeyWindow">
+              <div class="video-placeholder" id="violationKeyDisplay">
+                违规Key: none
+              </div>
+              <div class="window-label">
+                <span class="kitchen-name">违规类型</span>
+                <span class="timestamp" id="violationKeyTime">--:--:--</span>
+              </div>
+            </div>
+
+            <!-- 最近保存截图窗口 -->
+            <div class="video-window" id="savedWindow">
+              <div class="video-placeholder" id="savedPlaceholder">
+                最近保存: 无
+              </div>
+              <div class="window-label">
+                <span class="kitchen-name">保存记录</span>
+                <span class="timestamp" id="savedTimestamp">--:--:--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右侧实时违规列表 - 完全对接后端数据结构 -->
+          <div class="violation-sidebar">
+            <div class="violation-header">
+              <span>实时违规事件</span>
+              <span class="violation-count" id="violationListCount">0条新</span>
+            </div>
+            <div class="violation-list" id="violationList">
+              <!-- 动态插入违规记录 -->
+              <div class="violation-item">
+                <div class="violation-time">--:--:--</div>
+                <div class="violation-content">
+                  <div class="violation-types">
+                    <span class="violation-type-tag">等待检测</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部控制面板 - 完全对接后端 -->
+        <div class="control-panel">
+          <div class="status-indicator">
+            <span class="status-led" id="statusLed"></span>
+            <span class="status-text" id="statusText">当前状态：未检测</span>
+          </div>
+          
+          <div class="status-detail">
+            <span class="streak-badge" id="streakBadge">连击: 0</span>
+            <span class="save-path" id="savePath">--</span>
+          </div>
+
+          <div class="control-buttons">
+            <button class="btn" id="startCam">开启摄像头</button>
+            <button class="btn" id="stopDetect">停止检测</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // DOM 元素
       const video = document.getElementById("video");
       const preview = document.getElementById("preview");
-      const status = document.getElementById("status");
-      const detail = document.getElementById("detail");
+      const camPlaceholder = document.getElementById("camPlaceholder");
+      const previewPlaceholder = document.getElementById("previewPlaceholder");
+      const camTimestamp = document.getElementById("camTimestamp");
+      const previewTimestamp = document.getElementById("previewTimestamp");
+      const violationKeyDisplay = document.getElementById("violationKeyDisplay");
+      const violationKeyTime = document.getElementById("violationKeyTime");
+      const savedPlaceholder = document.getElementById("savedPlaceholder");
+      const savedTimestamp = document.getElementById("savedTimestamp");
+      const previewViolationBadge = document.getElementById("previewViolationBadge");
+      
+      // 统计元素
+      const todayViolations = document.getElementById("todayViolations");
+      const smokingCount = document.getElementById("smokingCount");
+      const noMaskCount = document.getElementById("noMaskCount");
+      const streakCount = document.getElementById("streakCount");
+      const streakBadge = document.getElementById("streakBadge");
+      const savePath = document.getElementById("savePath");
+      const statusLed = document.getElementById("statusLed");
+      const statusText = document.getElementById("statusText");
+      const maskModelStatus = document.getElementById("maskModelStatus");
+      const violationList = document.getElementById("violationList");
+      const violationListCount = document.getElementById("violationListCount");
+
+      // 状态变量 - 完全匹配后端数据结构
       let detectTimer = null;
       let isDetecting = false;
+      let violationHistory = [];
+      let totalViolations = 0;
+      let unreadViolations = 0;
+      let currentViolationKey = "none";
+      let currentStreak = 0;
+      let lastSavePath = "";
 
-      const setResult = (data) => {
-        preview.src = data.preview_image || "";
+      // 更新时间
+      function updateTime() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        document.getElementById('currentTime').textContent = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        
+        // 更新摄像头时间戳
+        if (isDetecting) {
+          camTimestamp.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+      }
+      setInterval(updateTime, 1000);
+      updateTime();
+
+      // 添加违规记录到列表 - 完全对接后端数据结构
+      function addViolationToList(data) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString();
+        
+        // 构建违规类型标签
+        let typeTags = [];
+        if (data.smoking_detected) {
+          typeTags.push(`吸烟 ${data.smoking_count}处`);
+        }
+        if (data.no_mask_detected) {
+          typeTags.push(`未戴口罩 ${data.no_mask_count}处`);
+        }
+        
+        if (typeTags.length === 0) return;
+        
+        // 获取置信度示例
+        let confidences = [];
+        if (data.boxes && data.boxes.length > 0) {
+          confidences = confidences.concat(data.boxes.map(b => b.confidence));
+        }
+        if (data.no_mask_boxes && data.no_mask_boxes.length > 0) {
+          confidences = confidences.concat(data.no_mask_boxes.map(b => b.confidence));
+        }
+        
+        const item = document.createElement("div");
+        item.className = "violation-item";
+        
+        let saveInfo = "";
+        if (data.just_saved) {
+          saveInfo = `<span class="save-info">已保存 (连击:${data.save_streak})</span>`;
+        }
+        
+        item.innerHTML = `
+          <div class="violation-time">${timeStr}</div>
+          <div class="violation-content">
+            <div class="violation-types">
+              ${typeTags.map(t => `<span class="violation-type-tag">${t}</span>`).join('')}
+            </div>
+            <span class="violation-key-badge">${data.violation_key || 'none'}</span>
+          </div>
+          <div class="violation-kitchen">
+            <span>置信度: ${confidences.length > 0 ? confidences.map(c => (c * 100).toFixed(0) + '%').join(' ') : '--'}</span>
+            ${saveInfo}
+          </div>
+        `;
+        
+        violationList.insertBefore(item, violationList.firstChild);
+        if (violationList.children.length > 20) {
+          violationList.removeChild(violationList.lastChild);
+        }
+        
+        // 更新计数器
+        unreadViolations += 1;
+        violationListCount.textContent = `${unreadViolations}条新`;
+      }
+
+      // 处理检测结果 - 完全匹配后端返回结构
+      function handleDetectionResult(data) {
+        console.log("检测结果:", data);
+        
+        // 更新口罩模型状态
+        if (data.mask_model_loaded === false) {
+          maskModelStatus.textContent = "口罩模型: 未加载";
+        } else {
+          maskModelStatus.textContent = "口罩模型: 已加载";
+        }
+        
+        // 更新预览图像
+        if (data.preview_image) {
+          preview.src = data.preview_image;
+          preview.style.display = "block";
+          previewPlaceholder.style.display = "none";
+          
+          const now = new Date();
+          previewTimestamp.textContent = now.toLocaleTimeString();
+        }
+        
+        // 更新统计数字
+        smokingCount.textContent = data.smoking_count || 0;
+        noMaskCount.textContent = data.no_mask_count || 0;
+        
+        // 更新违规key显示
+        currentViolationKey = data.violation_key || "none";
+        violationKeyDisplay.innerHTML = `违规Key: ${currentViolationKey}`;
+        violationKeyTime.textContent = new Date().toLocaleTimeString();
+        
+        // 根据违规key改变样式
         if (data.violation_detected) {
-          status.className = "status danger";
-          const reasons = [];
-          if (data.smoking_detected) reasons.push(`吸烟(${data.smoking_count || 0}处)`);
-          if (data.no_mask_detected) reasons.push(`未戴口罩(${data.no_mask_count || 0}处)`);
-          status.textContent = `当前状态：违规 - ${reasons.join("，")}`;
-          if (data.just_saved) {
-            const reasonText = data.save_reason ? `（原因：${data.save_reason}）` : "";
-            detail.textContent = `已保存违规截图：${data.screenshot_path}${reasonText}`;
-          } else if (data.screenshot_saved) {
-            const streakText = data.save_streak ? `；连续命中：${data.save_streak}` : "";
-            detail.textContent = `最近截图：${data.screenshot_path}${streakText}`;
-          } else {
-            const confidences = []
-              .concat((data.boxes || []).map((b) => b.confidence))
-              .concat((data.no_mask_boxes || []).map((b) => b.confidence));
-            detail.textContent = `置信度示例：${confidences.join(", ")}`;
+          violationKeyDisplay.style.color = "var(--danger-primary)";
+          if (currentViolationKey.includes("smoking")) {
+            violationKeyDisplay.innerHTML = `违规Key: ${currentViolationKey} <span style="color:var(--danger-primary)">🔥吸烟</span>`;
+          } else if (currentViolationKey.includes("no-mask")) {
+            violationKeyDisplay.innerHTML = `违规Key: ${currentViolationKey} <span style="color:var(--danger-primary)">😷未戴口罩</span>`;
           }
         } else {
-          status.className = "status safe";
-          status.textContent = "当前状态：正常";
-          if (data.mask_model_loaded === false) {
-            detail.textContent = "口罩模型未加载，仅吸烟检测有效";
-          } else {
-            detail.textContent = "未发现吸烟/未戴口罩目标";
-          }
+          violationKeyDisplay.style.color = "var(--text-tertiary)";
         }
-      };
+        
+        // 更新连续命中
+        currentStreak = (data.violation_streak ?? data.save_streak ?? 0);
+        streakCount.textContent = currentStreak;
+        streakBadge.textContent = `连击: ${currentStreak}`;
+        
+        // 更新保存信息
+        if (data.just_saved) {
+          lastSavePath = data.screenshot_path || "已保存截图";
+          savePath.textContent = lastSavePath.split('/').pop() || lastSavePath;
+          savedPlaceholder.innerHTML = `已保存: ${data.save_reason || '违规'}`;
+          savedTimestamp.textContent = new Date().toLocaleTimeString();
+        } else if (data.screenshot_saved && data.screenshot_path) {
+          lastSavePath = data.screenshot_path;
+          savePath.textContent = lastSavePath.split('/').pop() || lastSavePath;
+        }
+
+        // 违规角标 + 窗口边框
+        const camWindow = document.getElementById("camWindow");
+        const previewWindow = document.getElementById("previewWindow");
+        if (data.violation_detected) {
+          previewViolationBadge.style.display = "block";
+          camWindow && camWindow.classList.add("violation");
+          previewWindow && previewWindow.classList.add("violation");
+        } else {
+          previewViolationBadge.style.display = "none";
+          camWindow && camWindow.classList.remove("violation");
+          previewWindow && previewWindow.classList.remove("violation");
+        }
+
+        // 状态灯
+        if (data.violation_detected) {
+          statusLed.className = "status-led danger";
+          statusText.className = "status-text danger";
+          statusText.textContent = "当前状态：检测到违规";
+        } else {
+          statusLed.className = "status-led safe";
+          statusText.className = "status-text";
+          statusText.textContent = "当前状态：正常";
+        }
+
+        // 事件计数：只在新的违规 streak 开始时 +1（避免每帧累加）
+        if (data.violation_detected && currentStreak === 1) {
+          totalViolations += 1;
+          todayViolations.textContent = totalViolations;
+          addViolationToList(data);
+          violationHistory.push({ time: Date.now(), key: data.violation_key || "none" });
+          if (violationHistory.length > 200) violationHistory.shift();
+        }
+      }
 
       async function detectWithFormData(formData) {
         const res = await fetch("/api/detect", { method: "POST", body: formData });
@@ -140,22 +1094,29 @@
         if (!res.ok || !data.ok) {
           throw new Error(data.error || "检测失败");
         }
-        setResult(data);
+        handleDetectionResult(data);
       }
 
       async function detectCurrentFrame() {
         if (!video.srcObject || !isDetecting) return;
+        if (!video.videoWidth || !video.videoHeight) return;
+
         const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+
         const form = new FormData();
         form.append("image_data", dataUrl);
+
         try {
           await detectWithFormData(form);
         } catch (error) {
-          detail.textContent = `检测失败: ${error.message}`;
+          statusLed.className = "status-led";
+          statusText.className = "status-text danger";
+          statusText.textContent = `检测失败：${error.message}`;
         }
       }
 
@@ -172,18 +1133,43 @@
         }
       }
 
-      document.getElementById("startCam").onclick = async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        video.srcObject = stream;
-        isDetecting = true;
-        startRealtimeLoop();
-        detail.textContent = "实时检测已启动";
-      };
+      async function startCamera() {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+          video.style.display = "block";
+          camPlaceholder.style.display = "none";
+          isDetecting = true;
+          startRealtimeLoop();
 
-      document.getElementById("stopDetect").onclick = () => {
+          statusLed.className = "status-led safe";
+          statusText.className = "status-text";
+          statusText.textContent = "当前状态：摄像头已开启，检测中";
+        } catch (error) {
+          statusLed.className = "status-led";
+          statusText.className = "status-text danger";
+          statusText.textContent = `摄像头启动失败：${error.message}`;
+        }
+      }
+
+      function stopAll() {
         stopRealtimeLoop();
-        detail.textContent = "实时检测已停止";
-      };
-    </script>
-  </body>
+        if (video.srcObject) {
+          for (const track of video.srcObject.getTracks()) track.stop();
+          video.srcObject = null;
+        }
+        video.style.display = "none";
+        camPlaceholder.style.display = "flex";
+        camPlaceholder.textContent = "摄像头 · 已停止";
+
+        statusLed.className = "status-led";
+        statusText.className = "status-text";
+        statusText.textContent = "当前状态：已停止检测";
+      }
+
+      document.getElementById("startCam").onclick = startCamera;
+      document.getElementById("stopDetect").onclick = stopAll;
+    })();
+  </script>
+</body>
 </html>

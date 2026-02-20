@@ -22,6 +22,8 @@ MASK_CONF_THRESHOLD = 0.35
 # Smarter screenshot policy: reduce false positives + avoid spamming disk.
 SAVE_STREAK_THRESHOLD = 3
 SAVE_COOLDOWN_SECONDS = 10.0
+# If a single continuous violation lasts a long time, re-save evidence periodically.
+LONG_EVENT_RESAVE_SECONDS = 60.0
 MAX_CAPTURE_FILES = 200
 CAPTURE_DIR = BASE_DIR / "captures"
 CAPTURE_DIR.mkdir(exist_ok=True)
@@ -34,6 +36,10 @@ screenshot_path = ""
 violation_streak = 0
 last_violation_key = ""
 last_save_time = 0.0
+event_active = False
+event_saved = False
+event_start_time = 0.0
+event_last_saved_time = 0.0
 
 def _norm_class_name(name: object) -> str:
     value = str(name).strip().lower()
@@ -86,11 +92,13 @@ def _violation_key(smoking_detected: bool, no_mask_detected: bool) -> str:
 
 
 def _rotate_captures() -> None:
-    files = sorted(
-        CAPTURE_DIR.glob("violation_*.jpg"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    def _mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    files = sorted(CAPTURE_DIR.glob("violation_*.jpg"), key=_mtime, reverse=True)
     for old in files[MAX_CAPTURE_FILES:]:
         try:
             old.unlink()
@@ -106,6 +114,7 @@ def index():
 @app.route("/api/detect", methods=["POST"])
 def detect():
     global screenshot_saved, screenshot_path, violation_streak, last_violation_key, last_save_time
+    global event_active, event_saved, event_start_time, event_last_saved_time
 
     try:
         frame = _decode_image_from_request()
@@ -192,21 +201,38 @@ def detect():
     save_reason = ""
     save_streak = 0
 
+    now = time.time()
     if violation_detected:
         if violation_key == last_violation_key:
             violation_streak += 1
         else:
             violation_streak = 1
             last_violation_key = violation_key
+            # New violation type during a continuous run: treat as new event.
+            event_saved = False
+
+        if violation_streak == 1:
+            event_active = True
+            event_start_time = now
     else:
         violation_streak = 0
         last_violation_key = ""
+        event_active = False
+        event_saved = False
+        event_start_time = 0.0
 
-    now = time.time()
+    can_save_globally = (now - last_save_time) >= SAVE_COOLDOWN_SECONDS
+    is_long_event_resave = (
+        event_active
+        and event_saved
+        and LONG_EVENT_RESAVE_SECONDS > 0
+        and (now - event_last_saved_time) >= LONG_EVENT_RESAVE_SECONDS
+    )
     should_save = (
         violation_detected
         and violation_streak >= SAVE_STREAK_THRESHOLD
-        and (now - last_save_time) >= SAVE_COOLDOWN_SECONDS
+        and can_save_globally
+        and (not event_saved or is_long_event_resave)
     )
 
     if should_save:
@@ -222,6 +248,8 @@ def detect():
         just_saved = True
         save_reason = violation_key
         save_streak = violation_streak
+        event_saved = True
+        event_last_saved_time = now
 
     return jsonify(
         {
@@ -229,6 +257,7 @@ def detect():
             "mask_model_loaded": mask_model is not None,
             "violation_detected": violation_detected,
             "violation_key": violation_key,
+            "violation_streak": violation_streak,
             "smoking_detected": smoking_detected,
             "no_mask_detected": no_mask_detected,
             "smoking_count": len(smoking_boxes),
