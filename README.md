@@ -22,6 +22,18 @@ python app.py
 ### 3) 打开页面
 浏览器访问：`http://127.0.0.1:5000`
 
+## 项目结构（AI 友好）
+- `app.py`：入口（导出 `app`，并在本地运行 `flask` 服务）
+- `detector/`：核心逻辑（配置 / 图像编解码 / YOLO 推理 / 截图策略 / Web 路由）
+  - `detector/config.py`：集中配置（支持环境变量覆盖）
+  - `detector/yolo_detector.py`：模型加载 + 推理（吸烟 / 未戴口罩）
+  - `detector/capture_policy.py`：违规截图保存策略（阈值/冷却/轮转）
+  - `detector/image_io.py`：请求图片解码 & 预览图片编码
+  - `detector/webapp.py`：Flask 路由与返回 JSON
+- `templates/index.html`：前端页面（摄像头采集 + 调用 `/api/detect`）
+- `datasets/`：训练数据（体积较大）
+- `runs/`：训练/推理输出（体积较大，建议不提交）
+
 ## 使用说明
 - 点击“开启摄像头”后开始实时检测
 - 点击“停止检测”可暂停
@@ -42,12 +54,12 @@ python app.py
 - `mask_model_loaded`：是否加载到口罩模型
 
 ## 配置（后端）
-可在 `app.py` 顶部按需调整：
+默认配置在 `detector/config.py`，也可以用环境变量覆盖：
+- `SMOKING_MODEL_PATH`、`MASK_MODEL_PATH`
 - `SMOKING_CONF_THRESHOLD`、`MASK_CONF_THRESHOLD`
-- `SAVE_STREAK_THRESHOLD`（连续命中次数）
-- `SAVE_COOLDOWN_SECONDS`（保存冷却）
-- `LONG_EVENT_RESAVE_SECONDS`（长事件周期性补存证据）
-- `MAX_CAPTURE_FILES`（最大截图数）
+- `CAPTURE_DIR`
+- `SAVE_STREAK_THRESHOLD`、`SAVE_COOLDOWN_SECONDS`、`LONG_EVENT_RESAVE_SECONDS`、`MAX_CAPTURE_FILES`
+- `HOST`、`PORT`、`DEBUG`
 
 ## 本地摄像头脚本（可选）
 `kitchen.py` 提供一个直接用 OpenCV 打开摄像头进行检测并用 macOS `say` 播报警的脚本：
@@ -63,4 +75,3 @@ python kitchen.py
 ```bash
 python trainsmoking.py
 ```
-
