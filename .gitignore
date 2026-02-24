@@ -15,9 +15,6 @@ captures/
 screenshots/
 output/
 
-# Ultralytics / YOLO 输出
-runs/
-
 # 日志文件
 *.log
 *.log.*
